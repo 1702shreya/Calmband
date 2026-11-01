@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CalmBand - Stress Relaxation Music Library</title>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+    body {
+      margin: 0;
+      font-family: "Poppins", sans-serif;
+      background: radial-gradient(circle at top, #1b0034, #000);
+      color: #fff;
+      text-align: center;
+    }
+
+    /* Navbar */
+    .navbar {
+      background: linear-gradient(90deg, #7f00ff, #00d4ff);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 40px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    }
+    .navbar .logo { font-weight: bold; font-size: 24px; }
+    .navbar ul {
+      list-style: none;
+      display: flex;
+      gap: 25px;
+      margin: 0;
+      padding: 0;
+    }
+    .navbar ul li a {
+      text-decoration: none;
+      color: #fff;
+      font-weight: 600;
+      transition: 0.3s;
+    }
+    .navbar ul li a:hover { color: #00ffcc; }
+
+    h1 {
+      color: #00ffff;
+      text-shadow: 0 0 10px #00ffff;
+      margin: 20px 0;
+    }
+
+    .category { margin-bottom: 30px; }
+    .category h2 { color: #ffcc00; margin-bottom: 15px; }
+
+    .track {
+      background: linear-gradient(135deg, #ff00cc, #3333ff);
+      padding: 15px;
+      margin: 8px auto;
+      width: 90%;
+      border-radius: 12px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: 0.3s;
+    }
+    .track:hover {
+      transform: scale(1.02);
+      box-shadow: 0 0 15px rgba(255, 0, 255, 0.6);
+    }
+
+    audio {
+      width: 90%;
+      margin-top: 20px;
+      outline: none;
+      border-radius: 12px;
+    }
+
+    footer {
+      margin-top: 40px;
+      color: #aaa;
+      font-size: 14px;
+      padding-bottom: 20px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="logo">CalmBand</div>
+    <ul>
+      <li><a href="#">Home</a></li>
+      <li><a href="#">Analysis</a></li>
+      <li><a href="#">Contact</a></li>
+    </ul>
+  </nav>
+
+  <h1>🌸 Stress Relaxation Music Library 🌸</h1>
+
+  
+
+  <!-- Calm Instrumental -->
+  <div class="category">
+    <h2>Calm Instrumental</h2>
+    <div class="track" data-src="music\peaceful-piano-background-music-423216.mp3">Peaceful Piano</div>
+    <div class="track" data-src="music\nature-acoustic-guitar-music-349851.mp3">Guitar Calm</div>
+    <div class="track" data-src="music\relaxing-krishna-flute-music-deep-sleep-relaxing-music-292793.mp3">Flute Serenity</div>
+  </div>
+
+  <!-- Meditation and Sleep -->
+  <div class="category">
+    <h2>Meditation & Sleep</h2>
+    <div class="track" data-src="music\meditation-music-427644.mp3">Deep Meditation</div>
+    <div class="track" data-src="music\long-nights-calm-dark-ambient-music-354466.mp3">Peace of Mind</div>
+    <div class="track" data-src="music\c:\Users\shreya shivankar\Downloads\relaxing-ambient-music-299835.mp3">Relax Mind</div>
+  </div>
+
+  <!-- Chill Electronic -->
+  <div class="category">
+    <h2>Chill Electronic</h2>
+    <div class="track" data-src="music\better-day-186374.mp3">Ambient Chill</div>
+    <div class="track" data-src="music\dreamy-383011.mp3">Floating Vibes</div>
+  </div>
+  <div class="category">
+    <h2> Indian Therapy</h2>
+    <div class="track" data-src="music\ancient-spiritual-echoes-om-chanting-394452.mp3">Om Chanting</div>
+    <div class="track" data-src="music\tabla-flute-106-262274.mp3">Tabla Flute</div>
+    
+  </div>
+  <!-- Audio Player -->
+  <audio id="trackPlayer" controls></audio>
+
+  <footer>
+    🌙 CalmBand © 2025 | Relax. Breathe. Be Present.
+  </footer>
+
+  <script>
+    const trackPlayer = document.getElementById('trackPlayer');
+    const tracks = document.querySelectorAll('.track');
+
+    tracks.forEach(track => {
+      track.addEventListener('click', () => {
+        const src = track.getAttribute('data-src');
+        trackPlayer.src = src;
+        trackPlayer.play();
+      });
+    });
+  </script>
+</body>
+</html>

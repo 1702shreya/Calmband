@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CalmBand - Stress Monitor</title>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+  body {
+    margin: 0;
+    font-family: "Poppins", sans-serif;
+    background: radial-gradient(circle at top, #1b0034, #000);
+    color: #fff;
+    text-align: center;
+      min-height: 100vh;
+  overflow-x: hidden;
+  }
+
+  /* Navbar */
+  .navbar {
+    background: linear-gradient(90deg, #7f00ff, #00d4ff);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 25px 40px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  }
+  .navbar .logo {
+    font-weight: bold;
+    font-size: 24px;
+  }
+  .navbar ul {
+    list-style: none;
+    display: flex;
+    gap: 25px;
+    margin: 0;
+    padding: 0;
+  }
+  .navbar ul li a {
+    text-decoration: none;
+    color: #fff;
+    font-weight: 600;
+    transition: 0.3s;
+  }
+  .navbar ul li a:hover {
+    color: #00ffcc;
+  }
+    .tagline {
+    margin-top: 40px;
+    font-size: 28px;
+    font-weight: 700;
+    color: #0a0527;
+    text-shadow: 0 0 18px #3939b8;
+  
+    animation: fadeIn 1.2s ease-in-out;
+  }
+  .tagline-sub {
+    font-size: 18px;
+    margin-top: 10px;
+    color: #0a0212;
+    opacity: 0.9;
+    padding:  20px;
+  }
+
+  /* Container */
+  .container {
+    padding: 60px 20px;
+    padding-bottom: 0px;
+  margin-bottom: 0px;
+  }
+  .cards {
+    display: flex;
+    justify-content: center;
+    gap: 50px;
+    flex-wrap: wrap;
+    margin-bottom: 60px;
+  }
+  .card {
+    background: linear-gradient(145deg, #00d4ff, #0078ff);
+    padding: 25px 35px;
+    border-radius: 14px;
+    font-size: 18px;
+    font-weight: 600;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
+    transition: 0.3s;
+  }
+  .card:hover {
+    transform: translateY(-8px);
+  }
+
+  /* Gauge */
+  .gauge-container {
+    position: relative;
+    width: 300px;
+    height: 150px;
+    margin: 0 auto 20px auto;
+  }
+  .label {
+    margin-top: 15px;
+    font-size: 20px;
+    font-weight: 600;
+    color: #00ffff;
+    text-shadow: 0 0 10px #00ffff;
+  }
+
+  /* Buttons */
+  .btn, .analyze-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(90deg, #ff00cc, #3333ff);
+    border:none;
+    color:white;
+    font-weight:600;
+    padding:20px 24px;
+    border-radius:30px;
+    cursor:pointer;
+    margin:15px 10px 10px 170px;
+    box-shadow:0 0 15px rgba(255,0,255,0.6);
+    transition:0.3s;
+    font-size:16px;
+  }
+  .btn:hover, .analyze-btn:hover { transform:scale(1.05); box-shadow:0 0 25px rgba(255,255,255,0.9); }
+
+  /* Music control */
+  .music-control {
+    display: inline-flex;
+    align-items: center;
+    background: linear-gradient(90deg, #ff00cc, #3333ff);
+    border-radius: 30px;
+    padding: 12px 25px;
+    cursor: pointer;
+    box-shadow: 0 0 15px rgba(255,0,255,0.6);
+    transition: 0.3s;
+  }
+  .music-control:hover { transform: scale(1.05); box-shadow: 0 0 25px rgba(255,0,255,0.9); }
+  .music-btn-text { color:#fff; font-weight:600; margin-right:15px; }
+  .explore-arrow { color:#fff; font-size:28px; border:none; background:none; cursor:pointer; }
+/* Enable full page scrolling cleanly */
+body {
+  overflow-y: auto;
+}
+
+/* Add space below last buttons so content can scroll */
+.bottom-spacing {
+  height: 120px;
+  width: 100%;
+}
+
+/* Fix content sticking to bottom */
+.container, 
+.gauge-container, 
+.music-control, 
+.analyze-btn {
+  margin-bottom: 20px;
+}
+
+</style>
+
+
+
+
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="logo">CalmBand</div>
+  <ul>
+    <li><a href="#">Home</a></li>
+    <li><a href="analysis.html">Analysis</a></li>
+    <li><a href="form.html">User Info</a></li>
+  </ul>
+</nav>
+
+<section style="padding: 70px; background-color: rgb(215, 90, 6);">
+  <div class="tagline">
+    Track Your Stress. Transform Your Life ✨
+  </div>
+  <div class="tagline-sub">
+    CalmBand tracks your heart rate, temperature & GSR to guide you toward a calmer, healthier life.
+  </div>
+</section>
+<br>
+<div class="container">
+  <div class="cards">
+    <div class="card">Heart Rate</div>
+    <div class="card">Skin Temperature</div>
+    <div class="card">GSR Level</div>
+  </div>
+
+ </div>
+ <br><br>
+  <!-- Gauge -->
+  <div class="gauge-container">
+    <svg id="gauge" width="300" height="150">
+      <defs>
+        <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#00ff66"/>
+          <stop offset="50%" stop-color="#ffff33"/>
+          <stop offset="100%" stop-color="#ff3333"/>
+        </linearGradient>
+      </defs>
+      <path d="M20,140 A130,130 0 0,1 280,140" stroke="url(#gaugeGradient)" stroke-width="20" fill="none"/>
+      <line id="needle" x1="150" y1="140" x2="150" y2="20" stroke="#fff700" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="150" cy="140" r="10" fill="#fff" stroke="#00eaff" stroke-width="3"/>
+    </svg>
+  </div>
+  <div id="stressStatus" 
+     style="margin-top:10px; font-size:26px; font-weight:700; text-shadow:0 0 15px cyan;">
+</div>
+<br><br>
+
+  <!-- Music + Analyze buttons -->
+  <div style="margin-top:20px;">
+    <div class="music-control" id="musicControl">
+      <div class="music-btn-text" id="musicBtn">🎵 Music Off</div>
+      <button class="explore-arrow" onclick="window.location.href='music.html'">→</button>
+    </div>
+    <button class="analyze-btn" onclick="window.location.href='analysis.html'">Analyze Your Stress →</button>
+  </div>
+
+  <audio id="relaxMusic" loop></audio>
+</div>
+
+<!-- Firebase SDK -->
+<script>
+// needle element
+const needle = document.getElementById("needle");
+
+// Track state (band on/off)
+let bandDetected = false;
+
+// Map stress (0/1/2 → percent)
+function stressToPercent(stress) {
+  if (typeof stress === "number" && stress >= 0 && stress <= 100) return stress;
+  if (stress === 0) return 0;
+  if (stress === 1) return 50;
+  if (stress === 2) return 100;
+  return 0;
+}
+
+// Update needle (full 180°)
+// percent = 0 → -90°
+// percent = 50 → 0°
+// percent = 100 → +90°
+function updateNeedleFromPercent(percent) {
+  percent = Math.min(100, Math.max(0, percent));
+
+  const angle = -90 + (percent * 90);
+
+  // rotate around exact bottom point (150, 140)
+  needle.setAttribute("transform", `rotate(${angle} 150 140)`);
+}
+
+// Update status text
+function updateStressStatus(stress) {
+  const status = document.getElementById("stressStatus");
+
+  if (stress === 0) {
+    status.textContent = "✅ Your Stress is LOW";
+    status.style.color = "#00ff99";
+  } 
+  else if (stress === 1) {
+    status.textContent = "⚠️ Your Stress is MEDIUM";
+    status.style.color = "#ffff55";
+  } 
+  else if (stress === 2) {
+    status.textContent = "🔥 Your Stress is HIGH";
+    status.style.color = "#ff4444";
+  }
+}
+
+// Show NO BAND status
+function showNoBand() {
+  bandDetected = false;
+
+  document.getElementById("stressStatus").textContent = "⚠️ No Band Detected";
+  document.getElementById("stressStatus").style.color = "#ff4444";
+
+  // Move needle to leftmost (-90°)
+  updateNeedleFromPercent(0);
+
+  // Reset cards
+  document.querySelector(".cards .card:nth-child(1)").textContent = "Heart Rate: --";
+  document.querySelector(".cards .card:nth-child(2)").textContent = "Skin Temperature: --";
+  document.querySelector(".cards .card:nth-child(3)").textContent = "GSR Level: --";
+}
+
+// Show valid band readings
+function showStressData(data) {
+  bandDetected = true;
+
+  const percent = stressToPercent(data.STRESS);
+  updateNeedleFromPercent(percent);
+  updateStressStatus(data.STRESS);
+
+  document.querySelector(".cards .card:nth-child(1)").textContent = `Heart Rate: ${data.HR} bpm`;
+  document.querySelector(".cards .card:nth-child(2)").textContent = `Skin Temperature: ${data.TEMP} °C`;
+  document.querySelector(".cards .card:nth-child(3)").textContent = `GSR Level: ${data.GSR}`;
+}
+
+// FETCH DATA FROM ARDUINO
+async function fetchArduinoData() {
+  try {
+    const res = await fetch("http://10.83.61.176/data");
+
+    if (!res.ok) return showNoBand();
+
+    const data = await res.json();
+
+    // Missing keys = no band
+    if (!data || !("HR" in data)) return showNoBand();
+
+    // No band (all low)
+    if (data.HR < 40 && data.GSR < 300 && data.TEMP < 30) {
+      return showNoBand();
+    }
+
+    showStressData(data);
+
+  } catch (err) {
+    console.log("Error fetching:", err);
+    showNoBand();
+  }
+}
+
+setInterval(fetchArduinoData, 300);
+
+// Music control
+const musicBtn = document.getElementById('musicBtn');
+const relaxMusic = document.getElementById('relaxMusic');
+const musicControl = document.getElementById('musicControl');
+let isPlaying = false;
+
+relaxMusic.src = "music/peaceful-piano-background-music-423216.mp3";
+
+musicControl.addEventListener('click', (e) => {
+  if (e.target.classList.contains('explore-arrow')) return;
+  if (isPlaying) {
+    relaxMusic.pause();
+    musicBtn.textContent = "🎵 Music Off";
+    isPlaying = false;
+  } else {
+    relaxMusic.play();
+    musicBtn.textContent = "🎵 Music On";
+    isPlaying = true;
+    
+  }
+});
+
+// Function to auto-play music when stress is high
+function autoPlayMusicOnHighStress(stress) {
+  if (stress === 2 && !isPlaying) { // Only trigger if HIGH stress and music is off
+    relaxMusic.play().catch(err => console.log("Autoplay blocked:", err));
+    musicBtn.textContent = "🎵 Music On";
+    isPlaying = true;
+  }
+}
+
+// Hook into your existing showStressData function
+const originalShowStressData = showStressData;
+showStressData = function(data) {
+  originalShowStressData(data); // keep existing logic
+  autoPlayMusicOnHighStress(data.STRESS); // turn on music if stress is HIGH
+};
+</script>
+
+
+<div class="bottom-spacing"></div>
+
+</body>
+</html>

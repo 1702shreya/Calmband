@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CalmBand AI Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  body { background: #0c001a; color: #fff; font-family: 'Poppins', sans-serif; text-align: center; margin: 0; padding: 20px; }
+  .chat-container { max-width: 600px; margin: 50px auto; background: rgba(255,255,255,0.05); padding: 30px; border-radius: 25px; border: 1px solid #7f00ff; }
+  h1 { color: #00d4ff; }
+  
+  .input-area { display: flex; gap: 10px; margin-top: 20px; }
+  input { flex: 1; padding: 15px; border-radius: 15px; border: none; font-size: 16px; }
+  
+  .btn { padding: 12px 20px; border-radius: 15px; border: none; cursor: pointer; font-weight: 600; transition: 0.3s; }
+  .btn-send { background: #7f00ff; color: white; }
+  .btn-mic { background: #ff00cc; color: white; }
+  .btn-mic.listening { background: #ff0000; animation: pulse 1s infinite; }
+  
+  .response-box { margin-top: 30px; text-align: left; padding: 20px; background: rgba(0, 212, 255, 0.1); border-radius: 15px; min-height: 100px; line-height: 1.6; }
+  .back-link { display: inline-block; margin-top: 20px; color: #00d4ff; text-decoration: none; font-weight: 600; }
+
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+</style>
+</head>
+
+<body>
+  <div class="chat-container">
+    <h1>CalmBand AI Assistant</h1>
+    <p>Ask anything about your stress or health.</p>
+
+    <div class="input-area">
+      <input type="text" id="userInput" placeholder="Type your message...">
+      <button class="btn btn-mic" id="micBtn">🎤</button>
+      <button class="btn btn-send" id="sendBtn">Send</button>
+    </div>
+
+    <div class="response-box">
+      <strong>Calmband AI Assistant Response:</strong>
+      <div id="aiResponse">Awaiting your question...</div>
+    </div>
+
+    <a href="analysis.html" class="back-link">← Back to Analysis</a>
+  </div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<script>
+
+window.onload = function() {
+    // Clear the box so it doesn't show the old reply while waiting
+    document.getElementById("aiResponse").innerText = "Awaiting your question...";
+    firebase.database().ref("CalmBandData/Live_Display/recommendation").set("");
+};
+//  1. Firebase Config
+const firebaseConfig = {
+  apiKey: "AIzaSyDgfFaS48GZrckWpMtPJiWbrwPJs21CmC8",
+  authDomain: "calmband-123.firebaseapp.com",
+  databaseURL: "https://calmband-123-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "calmband-123",
+  storageBucket: "calmband-123.firebasestorage.app",
+  messagingSenderId: "341019300256",
+  appId: "1:341019300256:web:5842114288fb83872914c5"
+};
+
+// Initialize Firebase only if not already initialized
+if (!firebase.apps.length) {
+    firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.database();
+
+const userInput = document.getElementById('userInput');
+const aiResponseDiv = document.getElementById('aiResponse');
+const sendBtn = document.getElementById('sendBtn');
+const micBtn = document.getElementById('micBtn');
+
+let awaitingReply = false; 
+
+//  2. Voice Output (Speak back to user)
+function speak(text) {
+    if (!awaitingReply) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.onend = () => { awaitingReply = false; };
+    window.speechSynthesis.speak(utterance);
+}
+
+//  3. Handle Sending Query
+function handleUserQuery(text) {
+    const cleanText = text.trim();
+    if (!cleanText) return;
+
+    console.log("Sending query to Firebase:", cleanText);
+    awaitingReply = true; 
+    aiResponseDiv.innerText = "Calmband AI Assistant is thinking...";
+    
+    // Write to Firebase
+    db.ref("CalmBandData/User_Query").set({
+        text: cleanText,
+        timestamp: Date.now()
+    }).then(() => {
+        console.log("Successfully sent!");
+        userInput.value = "";
+    }).catch((error) => {
+        console.error("Firebase Error:", error);
+        aiResponseDiv.innerText = "Error: Could not connect to database.";
+    });
+}
+
+// ✅ 4. Mic / Speech Recognition Logic
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (SpeechRecognition) {
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+
+    micBtn.onclick = () => {
+        console.log("Mic clicked - listening...");
+        recognition.start();
+        micBtn.classList.add('listening');
+        micBtn.innerText = "🛑"; // Change icon to stop
+    };
+
+    recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        console.log("Heard:", transcript);
+        userInput.value = transcript;
+        micBtn.classList.remove('listening');
+        micBtn.innerText = "🎤";
+        handleUserQuery(transcript);
+    };
+
+    recognition.onerror = (event) => {
+        console.error("Speech Recognition Error:", event.error);
+        micBtn.classList.remove('listening');
+        micBtn.innerText = "🎤";
+        alert("Microphone error: " + event.error);
+    };
+} else {
+    micBtn.style.display = "none"; // Hide if browser doesn't support it
+    console.log("Speech recognition not supported in this browser.");
+}
+
+//  5. Button Listeners
+sendBtn.onclick = () => handleUserQuery(userInput.value);
+
+// Allow pressing "Enter" key to send
+userInput.addEventListener("keypress", (event) => {
+    if (event.key === "Enter") {
+        handleUserQuery(userInput.value);
+    }
+});
+
+// ✅ 6. Listen for AI Response from Python
+db.ref("CalmBandData/Live_Display").on("value", (snapshot) => {
+    const data = snapshot.val();
+    if (data && data.recommendation) {
+        console.log("New Recommendation Received:", data.recommendation);
+        aiResponseDiv.innerHTML = data.recommendation.replace(/\n/g, '<br>');
+        speak(data.recommendation);
+    }
+});
+</script>
+</body>
+</html>
+
+
+
+

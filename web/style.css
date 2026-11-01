@@ -1,0 +1,129 @@
+/* FONT */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap');
+
+*{
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Poppins", sans-serif;
+}
+
+/* ✅ CalmBand Dark Neon Background */
+body {
+  background: radial-gradient(circle at center,
+              #130A2A 0%, 
+              #0A011D 50%, 
+              #060014 100%);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 25px;
+}
+
+/* ✅ White Card (Matches Dashboard Cards) */
+.form-card {
+  width: 100%;
+  max-width: 480px;
+  background: rgba(255,255,255,0.95);
+  padding: 35px;
+  border-radius: 20px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+  backdrop-filter: blur(8px);
+}
+
+/* ✅ Heading Styling */
+h1 {
+  text-align: center;
+  font-size: 24px;
+  color: #ffffff;
+  background: linear-gradient(90deg, #ff1aff, #7b2fff, #00c6ff);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 8px;
+}
+
+.subtitle {
+  text-align: center;
+  color: #c9c9e8;
+  font-size: 14px;
+  margin-bottom: 25px;
+}
+
+/* Section Titles */
+h3 {
+  color: #7b2fff;
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+/* ✅ Input Fields */
+.input-box {
+  position: relative;
+  margin-bottom: 18px;
+}
+
+.input-box i {
+  position: absolute;
+  font-size: 17px;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+  color: #00c6ff;
+}
+
+.input-box input,
+.input-box textarea {
+  width: 100%;
+  padding: 12px 15px 12px 45px;
+  background: rgba(255,255,255,0.7);
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #2A2D4A;
+  transition: 0.3s ease;
+}
+
+textarea {
+  height: 90px;
+  resize: none;
+}
+
+/* ✅ Neon Focus Effect */
+.input-box input:focus,
+.input-box textarea:focus {
+  border: 2px solid #7b2fff;
+  box-shadow: 0 0 10px #7b2fff;
+  background: rgba(255,255,255,1);
+}
+
+/* ✅ Submit Button (NEON) */
+button {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(90deg, #ff1aff, #7b2fff, #00c6ff);
+  transition: 0.3s ease;
+  box-shadow: 0px 0px 12px rgba(255, 26, 255, 0.8);
+}
+
+button:hover {
+  transform: scale(1.05);
+  box-shadow: 
+     0 0 20px #ff1aff,
+     0 0 25px #7b2fff,
+     0 0 30px #00c6ff;
+}
+
+#msg {
+  text-align: center;
+  margin-top: 12px;
+  font-weight: 600;
+  color: #00ff88;
+  font-size: 15px;
+}

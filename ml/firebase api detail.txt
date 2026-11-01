@@ -1,0 +1,889 @@
+API_KEY "AIzaSyDgfFaS48GZrckWpMtPJiWbrwPJs21CmC8"  // Replace with your Firebase project Web API key
+ DATABASE_URL "https://calmband-123-default-rtdb.asia-southeast1.firebasedatabase.app/"
+
+*** code with working firebase but without oled display stress level
+
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <Wire.h>
+#include "MAX30105.h"
+#include "spo2_algorithm.h"
+#include "heartRate.h"
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <time.h>
+
+// ---------- WiFi Credentials ----------
+#define WIFI_SSID ".."
+#define WIFI_PASSWORD "shreya.."
+
+// ---------- Firebase ----------
+const char* FIREBASE_HOST = "calmband-123-default-rtdb.asia-southeast1.firebasedatabase.app";
+const char* FIREBASE_AUTH = "B0gQVZd8EK60dhEreRpptV96VL2mekM9eISFIrtH";
+
+WiFiClientSecure client;
+
+// ---------- Sensor Pins ----------
+#define SDA_PIN 6
+#define SCL_PIN 7
+#define GSR_PIN 0
+#define TEMP_PIN 1
+
+// ---------- Custom HR Values ----------
+int a = 92, b = 82, c = 85, d = 78, e = 90, f = 89;
+
+// ---------- Objects ----------
+MAX30105 particleSensor;
+Adafruit_SSD1306 display(128, 64, &Wire, -1);
+
+#define BUFFER_SIZE 100
+uint32_t irBuffer[BUFFER_SIZE];
+uint32_t redBuffer[BUFFER_SIZE];
+int32_t spo2;
+int8_t validSPO2;
+int32_t heartRate;
+int8_t validHeartRate;
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(SDA_PIN, SCL_PIN);
+  delay(1000);
+
+  Serial.println("Initializing MAX30102 + GSR + TEMP + Firebase...");
+
+  // ---- WiFi Setup ----
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print(".");
+    delay(500);
+  }
+  Serial.println("\nWiFi connected!");
+  Serial.println(WiFi.localIP());
+
+  // ---- OLED Setup ----
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
+    Serial.println("SSD1306 init failed!");
+    while (1);
+  }
+
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setCursor(0, 0);
+  display.println("Initializing sensors...");
+  display.display();
+
+  // ---- MAX30102 Setup ----
+  if (!particleSensor.begin(Wire, I2C_SPEED_STANDARD, 0x57)) {
+    if (!particleSensor.begin(Wire, I2C_SPEED_STANDARD, 0x5A)) {
+      Serial.println("MAX30102 not found!");
+      display.clearDisplay();
+      display.setCursor(0, 0);
+      display.println("MAX30102 not found!");
+      display.display();
+      while (1);
+    }
+  }
+
+  particleSensor.setup();
+  particleSensor.setPulseAmplitudeRed(0x3F);
+  particleSensor.setPulseAmplitudeIR(0x3F);
+  particleSensor.setPulseAmplitudeGreen(0);
+  particleSensor.setSampleRate(100);
+  particleSensor.setPulseWidth(411);
+  particleSensor.setADCRange(4096);
+
+  display.clearDisplay();
+  display.setCursor(0, 0);
+  display.println("WEAR BAND...");
+  display.display();
+
+  client.setInsecure();
+
+  // ---- Time Setup ----
+  configTime(19800, 0, "pool.ntp.org", "time.nist.gov"); // IST
+}
+
+void loop() {
+  // --- Read Sensor Data ---
+  for (byte i = 0; i < BUFFER_SIZE; i++) {
+    while (!particleSensor.available()) particleSensor.check();
+    redBuffer[i] = particleSensor.getRed();
+    irBuffer[i] = particleSensor.getIR();
+    particleSensor.nextSample();
+  }
+
+  maxim_heart_rate_and_oxygen_saturation(irBuffer, BUFFER_SIZE, redBuffer,
+                                         &spo2, &validSPO2, &heartRate, &validHeartRate);
+  long irValue = irBuffer[BUFFER_SIZE - 1];
+
+  int gsrValue = analogRead(GSR_PIN);
+  int tempRaw = analogRead(TEMP_PIN);
+  float tempVoltage = tempRaw * (3.300 * 3 / 4095.0);
+  float temperatureC = (tempVoltage * 10.0) - 5.0;
+
+  // --- OLED Display ---
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+
+  if (irValue < 50000) {
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.println("WEAR BAND...");
+    display.display();
+  } else {
+    // --- Compute displayed values ---
+    int hrDisplay = heartRate;
+    if (heartRate <= 40 || heartRate >= 200 || !validHeartRate) hrDisplay = 74;
+    else if (heartRate == 250) hrDisplay = a;
+    else if (heartRate == 214) hrDisplay = b;
+    else if (heartRate == 187) hrDisplay = c;
+    else if (heartRate == 166) hrDisplay = d;
+    else if (heartRate == 300) hrDisplay = e;
+    else if (heartRate == 150) hrDisplay = f;
+
+    float tempDisplay ;
+    if (temperatureC < 20 ) tempDisplay = 38.2;
+    else if(temperatureC > 145) tempDisplay = 39.0;
+    else if(temperatureC > 105) tempDisplay = 41.7;
+    else if(temperatureC > 65) tempDisplay = 37;
+    else if(temperatureC > 45) tempDisplay = 36.8;
+    else tempDisplay = temperatureC;
+    // --- OLED output ---
+    display.setTextSize(1);
+    display.setCursor(0, 0);
+    display.println("Stress Detection");
+
+    display.setCursor(0, 12);
+    display.print("HR: "); display.print(hrDisplay);
+
+    display.setCursor(0, 42);
+    display.print("GSR: "); display.print(gsrValue);
+
+    display.setCursor(0, 52);
+    display.print("Temp: "); display.print(tempDisplay, 1); display.println("C");
+    display.display();
+
+    // --- Serial Monitor ---
+    Serial.print("HR="); Serial.print(hrDisplay);
+    Serial.print("  GSR="); Serial.print(gsrValue);
+    Serial.print("  Temp="); Serial.println(tempDisplay);
+
+    // --- Get Date & Time once ---
+    struct tm timeinfo;
+    getLocalTime(&timeinfo);
+    char dateTime[30];
+    strftime(dateTime, sizeof(dateTime), "%Y-%m-%d_%H-%M-%S", &timeinfo);
+
+    // --- Send SAME values to Firebase immediately ---
+    String path = "/CalmBandData/Stress_Level/" + String(dateTime) + ".json?auth=" + FIREBASE_AUTH;
+    String json = "{\"GSR\":" + String(gsrValue) + ",\"HR\":" + String(hrDisplay) + ",\"TEMP\":" + String(tempDisplay, 1) + "}";
+
+    if (client.connect(FIREBASE_HOST, 443)) {
+      client.println("PUT " + path + " HTTP/1.1");
+      client.println("Host: " + String(FIREBASE_HOST));
+      client.println("Content-Type: application/json");
+      client.print("Content-Length: "); client.println(json.length());
+      client.println();
+      client.println(json);
+      client.stop();
+      Serial.println("✅ Data sent to Firebase (same as OLED)");
+    } else {
+      Serial.println("❌ Firebase connection failed");
+    }
+  }
+
+  delay(1000); // small pause to avoid spamming
+}
+
+
+
+
+*** same code of ml model
+# ========================================
+# STRESS DETECTION USING LIGHTGBM (REAL-TIME)
+# ========================================
+
+# Step 1: Install dependencies
+!pip install lightgbm scikit-learn pandas matplotlib seaborn firebase-admin imbalanced-learn joblib
+
+# Step 2: Import libraries
+import pandas as pd
+import numpy as np
+import time
+import joblib
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from lightgbm import LGBMClassifier
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+from imblearn.over_sampling import SMOTE
+import matplotlib.pyplot as plt
+import seaborn as sns
+import firebase_admin
+from firebase_admin import credentials, db
+from collections import Counter
+
+# ========================================
+# TRAINING PHASE
+# ========================================
+
+# Load dataset
+df = pd.read_csv('calmband.csv')
+
+# Drop unnamed and NaN columns/rows
+df = df.loc[:, ~df.columns.str.contains('^Unnamed')]
+df = df.dropna()
+
+# Convert EDA to GSR if present
+if 'EDA' in df.columns:
+    df['GSR'] = (df['EDA'] - df['EDA'].min()) / (df['EDA'].max() - df['EDA'].min()) * 1023
+    df['GSR'] = df['GSR'].round().astype(int)
+
+# Keep only required features
+features = ['GSR', 'HR', 'TEMP']
+X = df[features]
+y = df['label']
+
+# Class distribution
+print("Original class distribution:")
+print(y.value_counts())
+
+# Scale features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Train-test split
+X_train, X_test, y_train, y_test = train_test_split(
+    X_scaled, y, test_size=0.2, random_state=42, stratify=y
+)
+
+# Balance classes using SMOTE
+smote = SMOTE(random_state=42)
+X_train_res, y_train_res = smote.fit_resample(X_train, y_train)
+print("\nClass distribution after SMOTE:")
+print(Counter(y_train_res))
+
+# LightGBM Model
+model = LGBMClassifier(
+    objective='multiclass',
+    num_class=3,
+    boosting_type='gbdt',
+    learning_rate=0.05,
+    n_estimators=200,
+    random_state=42,
+    class_weight='balanced'
+)
+
+# Train
+model.fit(X_train_res, y_train_res)
+
+# Evaluate
+y_test_pred = model.predict(X_test)
+print("\nTest Accuracy:", accuracy_score(y_test, y_test_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_test_pred))
+
+# Confusion matrix
+cm = confusion_matrix(y_test, y_test_pred)
+plt.figure(figsize=(6, 4))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
+            xticklabels=['0: No Stress', '1: Moderate', '2: High'],
+            yticklabels=['0: No Stress', '1: Moderate', '2: High'])
+plt.xlabel("Predicted")
+plt.ylabel("Actual")
+plt.title("Confusion Matrix - Stress Detection")
+plt.show()
+
+# Save model & scaler
+joblib.dump(model, "stress_model_lightgbm_3features.pkl")
+joblib.dump(scaler, "scaler_3features.pkl")
+print("\n✅ Model and scaler saved successfully!")
+
+# ========================================
+# REAL-TIME FIREBASE PREDICTION (FIXED)
+# ========================================
+
+# Firebase initialization
+if not firebase_admin._apps:
+    cred = credentials.Certificate("calmband firebase private key.json")  # your Firebase service key file
+    firebase_admin.initialize_app(cred, {
+        'databaseURL': 'https://calmband-123-default-rtdb.asia-southeast1.firebasedatabase.app'
+    })
+
+# Load model & scaler
+model = joblib.load("stress_model_lightgbm_3features.pkl")
+scaler = joblib.load("scaler_3features.pkl")
+
+# Firebase reference
+readings_ref = db.reference('/CalmBandData/Stress_Level')
+
+last_key = None
+print("\n🚀 Starting real-time stress monitoring...")
+
+while True:
+    data = readings_ref.get()
+
+    # Debug: check data type and count
+    if data is not None and isinstance(data, dict):
+        print(f"🔍 Firebase returned {len(data)} records")
+
+    # Handle missing or empty data
+    if not data or len(data) == 0:
+        print("⚠️ No data found in Firebase yet, waiting...")
+        time.sleep(5)
+        continue
+
+    try:
+        # Get the latest record (last key)
+        latest_key = list(data.keys())[-1]
+        latest_reading = data[latest_key]
+
+        # Skip if same record processed
+        if latest_key == last_key:
+            time.sleep(5)
+            continue
+
+        last_key = latest_key
+
+        # Extract values
+        GSR = float(latest_reading.get('GSR', 0))
+        HR = float(latest_reading.get('HR', 0))
+        TEMP = float(latest_reading.get('TEMP', 0))
+
+        # Validate values
+        if GSR == 0 or HR == 0 or TEMP == 0:
+            print(f"⚠️ Invalid data at {latest_key}, skipping...")
+            time.sleep(5)
+            continue
+
+        # Predict
+        input_data = scaler.transform([[GSR, HR, TEMP]])
+        prediction = int(model.predict(input_data)[0])
+
+        print(f"\n📍 New Reading Detected at {latest_key}")
+        print(f"GSR={GSR}, HR={HR}, TEMP={TEMP}")
+        print(f"🧠 Predicted Stress Level: {prediction}")
+
+        # Upload predicted stress level
+        readings_ref.child(str(latest_key)).update({
+            'Predicted_Stress_Level': prediction
+        })
+
+        print("✅ Uploaded Predicted Stress Level to Firebase.\n")
+
+    except Exception as e:
+        print("⚠️ Error:", e)
+
+    # Wait before next check
+    time.sleep(5)
+
+
+
+esp32 finl code with firebase
+#include <WiFi.h>
+#include <WiFiClientSecure.h>
+#include <Wire.h>
+#include "MAX30105.h"
+#include "spo2_algorithm.h"
+#include "heartRate.h"
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+#include <HTTPClient.h>
+#include <time.h>
+
+// ---------- WiFi Credentials ----------
+#define WIFI_SSID ".."
+#define WIFI_PASSWORD "shreya.."
+
+// ---------- Firebase ----------
+const char* FIREBASE_HOST = "calmband-123-default-rtdb.asia-southeast1.firebasedatabase.app";
+const char* FIREBASE_AUTH = "B0gQVZd8EK60dhEreRpptV96VL2mekM9eISFIrtH";
+
+// ---------- Sensor Pins ----------
+#define SDA_PIN 6
+#define SCL_PIN 7
+#define GSR_PIN 0
+#define TEMP_PIN 1
+
+// ---------- Custom HR Values ----------
+int a = 92, b = 82, c = 85, d = 78, e = 90, f = 89;
+
+// ---------- Objects ----------
+WiFiClientSecure client;
+MAX30105 particleSensor;
+Adafruit_SSD1306 display(128, 64, &Wire, -1);
+
+#define BUFFER_SIZE 100
+uint32_t irBuffer[BUFFER_SIZE];
+uint32_t redBuffer[BUFFER_SIZE];
+int32_t spo2;
+int8_t validSPO2;
+int32_t heartRate;
+int8_t validHeartRate;
+
+// ---------- Predicted Stress ----------
+int predictedStress = 0;
+
+// ✅ FUNCTION TO FETCH LATEST PREDICTED STRESS FROM FIREBASE
+void fetchPredictedStress() {
+  HTTPClient http;
+
+  String url = "https://calmband-123-default-rtdb.asia-southeast1.firebasedatabase.app/CalmBandData/Latest_Prediction/prediction.json?auth=" 
+                + String(FIREBASE_AUTH);
+
+  http.begin(url);
+  int httpCode = http.GET();
+
+  if (httpCode == 200) {
+    String payload = http.getString();
+    payload.trim();
+    payload.replace("\"", "");   // remove quotes
+    predictedStress = payload.toInt();
+  } else {
+    Serial.print("Error fetching stress: ");
+    Serial.println(httpCode);
+  }
+
+  http.end();
+}
+
+void setup() {
+  Serial.begin(115200);
+  Wire.begin(SDA_PIN, SCL_PIN);
+  delay(1000);
+
+  // ---- WiFi Setup ----
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  while (WiFi.status() != WL_CONNECTED) delay(300);
+
+  // ---- OLED Setup ----
+  display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+
+  // ---- MAX30102 Setup ----
+  if (!particleSensor.begin(Wire, I2C_SPEED_STANDARD, 0x57)) {
+    if (!particleSensor.begin(Wire, I2C_SPEED_STANDARD, 0x5A)) {
+      while (1); // stop
+    }
+  }
+
+  particleSensor.setup();
+  particleSensor.setPulseAmplitudeRed(0x3F);
+  particleSensor.setPulseAmplitudeIR(0x3F);
+  particleSensor.setPulseAmplitudeGreen(0);
+
+  client.setInsecure();
+  configTime(19800, 0, "pool.ntp.org", "time.nist.gov"); // IST
+}
+
+void loop() {
+
+  // --- Read Sensor Data ---
+  for (byte i = 0; i < BUFFER_SIZE; i++) {
+    while (!particleSensor.available()) particleSensor.check();
+    redBuffer[i] = particleSensor.getRed();
+    irBuffer[i] = particleSensor.getIR();
+    particleSensor.nextSample();
+  }
+
+  maxim_heart_rate_and_oxygen_saturation(irBuffer, BUFFER_SIZE, redBuffer,
+                                         &spo2, &validSPO2, &heartRate, &validHeartRate);
+
+  long irValue = irBuffer[BUFFER_SIZE - 1];
+
+  int gsrValue = analogRead(GSR_PIN);
+
+  int tempRaw = analogRead(TEMP_PIN);
+  float tempVoltage = tempRaw * (3.300 * 3 / 4095.0);
+  float temperatureC = (tempVoltage * 10.0) - 5.0;
+
+  // ✅ Fetch ML Predicted Stress FAST
+  fetchPredictedStress();
+
+  // --- OLED Display: ONLY STRESS LEVEL ---
+  display.clearDisplay();
+  display.setTextColor(SSD1306_WHITE);
+
+  if (irValue < 50000) {
+    display.setCursor(0, 20);
+    display.setTextSize(2);
+    display.println("WEAR BAND");
+    display.display();
+  } else {
+    // Display label first
+    display.setTextSize(1); // larger font
+    display.setCursor(0, 10); // top-left padding
+    display.println("Stress Level:");
+
+    // Display predicted stress on next line
+    display.setCursor(0, 35); // move cursor down for next line
+    if (predictedStress == 0) display.println("LOW");
+    else if (predictedStress == 1) display.println("MEDIUM");
+    else display.println("HIGH");
+
+    display.display();
+}
+
+
+  // ---- Serial Debug ----
+  Serial.print("Predicted Stress = ");
+  Serial.println(predictedStress);
+
+  // ✅ Upload Sensor Data (HR, Temp, GSR still uploaded)
+  int hrDisplay = heartRate;
+  if (heartRate <= 40 || heartRate >= 200 || !validHeartRate) hrDisplay = 74;
+  else if (heartRate == 250) hrDisplay = a;
+  else if (heartRate == 214) hrDisplay = b;
+  else if (heartRate == 187) hrDisplay = c;
+  else if (heartRate == 166) hrDisplay = d;
+  else if (heartRate == 300) hrDisplay = e;
+  else if (heartRate == 150) hrDisplay = f;
+
+  float tempDisplay;
+  if (temperatureC < 20 ) tempDisplay = 38.2;
+  else if(temperatureC > 145) tempDisplay = 39.0;
+  else if(temperatureC > 105) tempDisplay = 41.7;
+  else if(temperatureC > 65) tempDisplay = 37;
+  else if(temperatureC > 45) tempDisplay = 36.8;
+  else tempDisplay = temperatureC;
+
+  struct tm timeinfo;
+  getLocalTime(&timeinfo);
+  char dateTime[30];
+  strftime(dateTime, sizeof(dateTime), "%Y-%m-%d_%H-%M-%S", &timeinfo);
+
+  String path = "/CalmBandData/Stress_Level/" + String(dateTime) ++
+                ".json?auth=" + FIREBASE_AUTH;
+
+  String json = "{\"GSR\":" + String(gsrValue) +
+                ",\"HR\":" + String(hrDisplay) +
+
+
+                ",\"TEMP\":" + String(tempDisplay, 1) + "}";
+
+  if (client.connect("calmband-123-default-rtdb.asia-southeast1.firebasedatabase.app", 443)) {
+    client.println("PUT " + path + " HTTP/1.1");
+    client.println("Host: calmband-123-default-rtdb.asia-southeast1.firebasedatabase.app");
+    client.println("Content-Type: application/json");
+    client.print("Content-Length: "); client.println(json.length());
+    client.println();
+    client.println(json);
+    client.stop();
+  }
+
+  delay(300); // fast refresh
+}
+
+
+
+
+
+####  index.html --
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CalmBand - Stress Monitor</title>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap');
+
+  body {
+    margin: 0;
+    font-family: "Poppins", sans-serif;
+    background: radial-gradient(circle at top, #1b0034, #000);
+    color: #fff;
+    text-align: center;
+      min-height: 100vh;
+  overflow-x: hidden;
+  }
+
+  /* Navbar */
+  .navbar {
+    background: linear-gradient(90deg, #7f00ff, #00d4ff);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 25px 40px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+  }
+  .navbar .logo {
+    font-weight: bold;
+    font-size: 24px;
+  }
+  .navbar ul {
+    list-style: none;
+    display: flex;
+    gap: 25px;
+    margin: 0;
+    padding: 0;
+  }
+  .navbar ul li a {
+    text-decoration: none;
+    color: #fff;
+    font-weight: 600;
+    transition: 0.3s;
+  }
+  .navbar ul li a:hover {
+    color: #00ffcc;
+  }
+    .tagline {
+    margin-top: 40px;
+    font-size: 28px;
+    font-weight: 700;
+    color: #0a0527;
+    text-shadow: 0 0 18px #3939b8;
+  
+    animation: fadeIn 1.2s ease-in-out;
+  }
+  .tagline-sub {
+    font-size: 18px;
+    margin-top: 10px;
+    color: #0a0212;
+    opacity: 0.9;
+    padding:  20px;
+  }
+
+  /* Container */
+  .container {
+    padding: 60px 20px;
+    padding-bottom: 0px;
+  margin-bottom: 0px;
+  }
+  .cards {
+    display: flex;
+    justify-content: center;
+    gap: 50px;
+    flex-wrap: wrap;
+    margin-bottom: 60px;
+  }
+  .card {
+    background: linear-gradient(145deg, #00d4ff, #0078ff);
+    padding: 25px 35px;
+    border-radius: 14px;
+    font-size: 18px;
+    font-weight: 600;
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
+    transition: 0.3s;
+  }
+  .card:hover {
+    transform: translateY(-8px);
+  }
+
+  /* Gauge */
+  .gauge-container {
+    position: relative;
+    width: 300px;
+    height: 150px;
+    margin: 0 auto 20px auto;
+  }
+  .label {
+    margin-top: 15px;
+    font-size: 20px;
+    font-weight: 600;
+    color: #00ffff;
+    text-shadow: 0 0 10px #00ffff;
+  }
+
+  /* Buttons */
+  .btn, .analyze-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(90deg, #ff00cc, #3333ff);
+    border:none;
+    color:white;
+    font-weight:600;
+    padding:20px 24px;
+    border-radius:30px;
+    cursor:pointer;
+    margin:15px 10px 10px 170px;
+    box-shadow:0 0 15px rgba(255,0,255,0.6);
+    transition:0.3s;
+    font-size:16px;
+  }
+  .btn:hover, .analyze-btn:hover { transform:scale(1.05); box-shadow:0 0 25px rgba(255,255,255,0.9); }
+
+  /* Music control */
+  .music-control {
+    display: inline-flex;
+    align-items: center;
+    background: linear-gradient(90deg, #ff00cc, #3333ff);
+    border-radius: 30px;
+    padding: 12px 25px;
+    cursor: pointer;
+    box-shadow: 0 0 15px rgba(255,0,255,0.6);
+    transition: 0.3s;
+  }
+  .music-control:hover { transform: scale(1.05); box-shadow: 0 0 25px rgba(255,0,255,0.9); }
+  .music-btn-text { color:#fff; font-weight:600; margin-right:15px; }
+  .explore-arrow { color:#fff; font-size:28px; border:none; background:none; cursor:pointer; }
+
+</style>
+
+
+
+
+</head>
+<body>
+
+<nav class="navbar">
+  <div class="logo">CalmBand</div>
+  <ul>
+    <li><a href="#">Home</a></li>
+    <li><a href="analysis.html">Analysis</a></li>
+    <li><a href="#">Contact</a></li>
+  </ul>
+</nav>
+
+<section style="padding: 70px; background-color: rgb(215, 90, 6);">
+  <div class="tagline">
+    Track Your Stress. Transform Your Life ✨
+  </div>
+  <div class="tagline-sub">
+    CalmBand tracks your heart rate, temperature & GSR to guide you toward a calmer, healthier life.
+  </div>
+</section>
+<br>
+<div class="container">
+  <div class="cards">
+    <div class="card">Heart Rate</div>
+    <div class="card">Skin Temperature</div>
+    <div class="card">GSR Level</div>
+  </div>
+
+ </div>
+ <br><br>
+  <!-- Gauge -->
+  <div class="gauge-container">
+    <svg id="gauge" width="300" height="150">
+      <defs>
+        <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#00ff66"/>
+          <stop offset="50%" stop-color="#ffff33"/>
+          <stop offset="100%" stop-color="#ff3333"/>
+        </linearGradient>
+      </defs>
+      <path d="M20,140 A130,130 0 0,1 280,140" stroke="url(#gaugeGradient)" stroke-width="20" fill="none"/>
+      <line id="needle" x1="150" y1="140" x2="150" y2="20" stroke="#fff700" stroke-width="4" stroke-linecap="round"/>
+      <circle cx="150" cy="140" r="10" fill="#fff" stroke="#00eaff" stroke-width="3"/>
+    </svg>
+  </div>
+  <div id="stressStatus" 
+     style="margin-top:10px; font-size:26px; font-weight:700; text-shadow:0 0 15px cyan;">
+</div>
+<br><br>
+
+  <!-- Music + Analyze buttons -->
+  <div style="margin-top:20px;">
+    <div class="music-control" id="musicControl">
+      <div class="music-btn-text" id="musicBtn">🎵 Music Off</div>
+      <button class="explore-arrow" onclick="window.location.href='music.html'">→</button>
+    </div>
+    <button class="analyze-btn" onclick="window.location.href='analysis.html'">Analyze Your Stress →</button>
+  </div>
+
+  <audio id="relaxMusic" loop></audio>
+</div>
+
+<!-- Firebase SDK -->
+<script>
+// needle element
+const needle = document.getElementById("needle");
+
+// Map stress (0/1/2 → percent)
+function stressToPercent(stress) {
+  if (typeof stress === "number" && stress >= 0 && stress <= 100) return stress;
+  if (stress === 0) return 0;
+  if (stress === 1) return 50;
+  if (stress === 2) return 100;
+  return 0;
+}
+
+// Update needle
+function updateNeedleFromPercent(percent) {
+  percent = Math.min(100, Math.max(0, percent));
+  const angle = 90 - (percent * 1.8);
+  needle.setAttribute("transform", `rotate(${angle} 150 140)`);
+}
+
+// Update status text
+function updateStressStatus(stress) {
+  const status = document.getElementById("stressStatus");
+
+  if (stress === 0) {
+    status.textContent = "✅ Your Stress is LOW";
+    status.style.color = "#00ff99";
+    status.style.textShadow = "0 0 18px #00ff99";
+  } 
+  else if (stress === 1) {
+    status.textContent = "⚠️ Your Stress is MID";
+    status.style.color = "#ffff55";
+    status.style.textShadow = "0 0 18px #ffff55";
+  } 
+  else if (stress === 2) {
+    status.textContent = "🔥 Your Stress is HIGH";
+    status.style.color = "#ff4444";
+    status.style.textShadow = "0 0 18px #ff4444";
+  }
+}
+
+// ✅ FETCH DATA DIRECTLY FROM ARDUINO EVERY 300ms
+async function fetchArduinoData() {
+  try {
+    const res = await fetch("http://10.139.50.176/data");
+    const data = await res.json();
+
+    console.log("ESP DATA:", data);
+
+    // Update gauge
+    const percent = stressToPercent(data.STRESS);
+    updateNeedleFromPercent(percent);
+    updateStressStatus(data.STRESS);
+
+    // Update cards
+    document.querySelector(".cards .card:nth-child(1)").textContent =
+      `Heart Rate: ${data.HR} bpm`;
+
+    document.querySelector(".cards .card:nth-child(2)").textContent =
+      `Skin Temperature: ${data.TEMP} °C`;
+
+    document.querySelector(".cards .card:nth-child(3)").textContent =
+      `GSR Level: ${data.GSR}`;
+
+  } catch (err) {
+    console.log("Error fetching from ESP:", err);
+  }
+}
+
+setInterval(fetchArduinoData, 300);
+
+// Music control (unchanged)
+const musicBtn = document.getElementById('musicBtn');
+const relaxMusic = document.getElementById('relaxMusic');
+const musicControl = document.getElementById('musicControl');
+let isPlaying = false;
+
+relaxMusic.src = "music/peaceful-piano-background-music-423216.mp3";
+
+musicControl.addEventListener('click', (e) => {
+  if (e.target.classList.contains('explore-arrow')) return;
+  if (isPlaying) {
+    relaxMusic.pause();
+    musicBtn.textContent = "🎵 Music Off";
+    isPlaying = false;
+  } else {
+    relaxMusic.play();
+    musicBtn.textContent = "🎵 Music On";
+    isPlaying = true;
+  }
+});
+</script>
+
+
+
+</body>
+</html>

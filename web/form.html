@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta-name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CalmBand - Emergency Contact Form</title>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="style.css">
+
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+  <!-- EmailJS -->
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+  <script>
+      emailjs.init("nzrSOyDFf-ksTqpML"); /* STEP 1: Add your EmailJS public key */
+  </script>
+
+<script>
+window.onload = function () {
+
+  /* ---------------------------------------------------------
+      Firebase Config
+  --------------------------------------------------------- */
+  const firebaseConfig = {
+    apiKey: "AIzaSyDgfFaS48GZrckWpMtPJiWbrwPJs21CmC8",
+    authDomain: "calmband-123.firebaseapp.com",
+    databaseURL: "https://calmband-123-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "calmband-123",
+    storageBucket: "calmband-123.firebasestorage.app",
+    messagingSenderId: "341019300256",
+    appId: "1:341019300256:web:5842114288fb83872914c5"
+  };
+
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  // Initialize EmailJS
+  emailjs.init("nzrSOyDFf-ksTqpML"); /* Your EmailJS Public Key */
+
+  /* ---------------------------------------------------------
+      LOAD SAVED DATA FROM FIREBASE INTO FORM
+  --------------------------------------------------------- */
+  const userId = "user123";
+
+  db.ref("calmband-users/" + userId).once("value").then(snapshot => {
+      if (snapshot.exists()) {
+          let d = snapshot.val();
+
+          document.getElementById("name").value = d.name || "";
+          document.getElementById("phone").value = d.phone || "";
+          document.getElementById("email").value = d.email || "";
+          document.getElementById("address").value = d.address || "";
+
+          document.getElementById("familyName").value = d.family?.name || "";
+          document.getElementById("familyPhone").value = d.family?.phone || "";
+          document.getElementById("familyEmail").value = d.family?.email || "";
+      }
+  });
+
+  /* ---------------------------------------------------------
+      SAVE FORM DATA
+  --------------------------------------------------------- */
+  document.getElementById("emergencyForm").addEventListener("submit", function (e) {
+      e.preventDefault();
+
+      const userData = {
+          name: document.getElementById("name").value.trim(),
+          phone: document.getElementById("phone").value.trim(),
+          email: document.getElementById("email").value.trim(),
+          address: document.getElementById("address").value.trim(),
+          family: {
+              name: document.getElementById("familyName").value.trim(),
+              phone: document.getElementById("familyPhone").value.trim(),
+              email: document.getElementById("familyEmail").value.trim()
+          }
+      };
+
+      db.ref("calmband-users/" + userId)
+        .set(userData)
+        .then(() => {
+          document.getElementById("msg").innerText = "✅ Details Submitted Successfully!";
+        })
+        .catch(err => {
+          document.getElementById("msg").innerText = "❌ Error saving data!";
+          console.log("Firebase Error:", err);
+        });
+  });
+
+  /* ---------------------------------------------------------
+      STRESS CHECK + EMAIL ALERT (EXISTING LOGIC)
+  --------------------------------------------------------- */
+  let highStressCount = 0;
+
+  // This function will be called by your ML model
+  function updateStressLevel(stressValue) {
+
+      console.log("Stress:", stressValue);
+
+      if (stressValue === "MID") {
+          highStressCount++;
+          console.log("High stress count:", highStressCount);
+      }
+
+      if (highStressCount >= 1) {
+          sendAlertEmail();
+          highStressCount = 0; // reset after sending
+      }
+  }
+
+  /* ---------------------------------------------------------
+      SEND EMAIL ALERT (EXISTING)
+  --------------------------------------------------------- */
+  function sendAlertEmail() {
+      emailjs.send("service_14jxhk4", "template_rfjyoa2", {
+          subject: "⚠ CalmBand Alert: High Stress Detected 4 Times",
+          message: "High stress has been detected multiple times. Immediate attention is required!"
+      })
+      .then(() => {
+          console.log("⚠ Email Alert Sent Successfully!");
+      })
+      .catch((error) => {
+          console.error("Email Error:", error);
+      });
+  }
+
+  /* ---------------------------------------------------------
+      TEMP TEST (FOR DEMO) - REMOVE SOON
+  --------------------------------------------------------- */
+  setInterval(() => {
+      let lvls = ["LOW", "MID", "HIGH"];
+      let level = lvls[Math.floor(Math.random() * 3)];
+      updateStressLevel(level);
+  }, 3000);
+
+  /* ---------------------------------------------------------
+      AUTO EMAIL ALERT WHEN PREDICTED_STRESS_LEVEL = 2
+      (NEW CODE, DOES NOT MODIFY EXISTING LOGIC)
+  --------------------------------------------------------- */
+  // Keep track of already sent timestamps to avoid duplicate emails
+  const sentTimestamps = {};
+
+  firebase.database().ref("CalmBand/Stress_Level").on("child_added", function(snapshot) {
+      const stressData = snapshot.val();
+      const timestamp = snapshot.key;
+      const predictedStress = stressData.predicted_Stress_Level;
+
+      console.log("New Stress Entry:", predictedStress, "Timestamp:", timestamp);
+
+      if (predictedStress === 2 && !sentTimestamps[timestamp]) {
+          sentTimestamps[timestamp] = true; // mark as sent
+
+          // Fetch family email from calmband-users
+          firebase.database().ref("calmband-users/" + userId).once("value").then(userSnap => {
+              const userData = userSnap.val();
+              const userName = userData.name || "User";
+              const familyEmail = userData.family?.email;
+
+              if (familyEmail) {
+                  emailjs.send(
+                      "service_14jxhk4",
+                      "template_rfjyoa2",
+                      {
+                          name: userName,
+                          email: familyEmail,
+                          message: `⚠ Alert! ${userName}'s stress level is 2. Immediate attention required!`
+                      }
+                  )
+                  .then(() => console.log("⚠ Email sent successfully to", familyEmail))
+                  .catch(error => console.error("Email Error:", error));
+              }
+          });
+      }
+  });
+
+}; // window.onload ends
+</script>
+</head>
+
+<body>
+
+<div class="form-card">
+
+  <h1>CalmBand Emergency Contact Form</h1>
+  <p class="subtitle">Provide your details so we can alert your family during high stress levels.</p>
+
+  <form id="emergencyForm">
+
+    <h3>Your Information</h3>
+
+    <div class="input-box">
+      <i class="fa-solid fa-user"></i>
+      <input type="text" id="name" placeholder="Full Name" required>
+    </div>
+
+    <div class="input-box">
+      <i class="fa-solid fa-phone"></i>
+      <input type="tel" id="phone" placeholder="Contact Number" required>
+    </div>
+
+    <div class="input-box">
+      <i class="fa-solid fa-envelope"></i>
+      <input type="email" id="email" placeholder="Email Address" required>
+    </div>
+
+    <div class="input-box textarea">
+      <i class="fa-solid fa-location-dot"></i>
+      <textarea id="address" placeholder="Complete Address" required></textarea>
+    </div>
+
+    <h3>Family / Emergency Contact</h3>
+
+    <div class="input-box">
+      <i class="fa-solid fa-user-group"></i>
+      <input type="text" id="familyName" placeholder="Family Member Name" required>
+    </div>
+
+    <div class="input-box">
+      <i class="fa-solid fa-phone-volume"></i>
+      <input type="tel" id="familyPhone" placeholder="Family Contact Number" required>
+    </div>
+
+    <div class="input-box">
+      <i class="fa-solid fa-envelope-circle-check"></i>
+      <input type="email" id="familyEmail" placeholder="Family Email" required>
+    </div>
+
+    <button type="submit">Submit Details</button>
+    <p id="msg"></p>
+
+  </form>
+
+</div>
+
+</body>
+</html>
